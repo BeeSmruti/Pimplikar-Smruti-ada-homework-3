@@ -1,0 +1,203 @@
+---
+title: "Homework-3"
+author: "SP"
+date: "4/16/2021"
+output: html_document
+---
+
+```{r}
+## Challenge 1
+## Loading the packages
+install.packages("easypackages") ## package to load in multiple packages in a single line of code!!
+library(easypackages)
+packages("tidyverse", "lmodel2", "broom", "manipulate", "curl", "boot", "patchwork", "infer")
+libraries("tidyverse", "curl", "broom", "lmodel2", "boot", "patchwork", "infer")
+## input the Kamilar and Cooper CSV from repo on github 
+
+f <- curl("https://raw.githubusercontent.com/BeeSmruti/Pimplikar-Smruti-ada-homework-3/main/KamilarAndCooperData.csv")
+d <- read.csv(f, header = TRUE, sep = ",", stringsAsFactors = FALSE)
+head(d)
+
+## part 1 is to fit a regression model. The predicted variable (Y) is WeaningAge_d and the controlled variable (X) is Brain_Size_Species_Mean.
+
+model <- lm(WeaningAge_d ~ Brain_Size_Species_Mean, data = d)
+modelog <- lm(log(WeaningAge_d)~log(Brain_Size_Species_Mean), data=d)
+names(model) ## elements of the model, can be inspected individually for more information. 
+names(modelog)
+mod$coefficients 
+tidy(model)
+modelog$coefficients
+tidy(modelog)
+
+## scatterplot with the line determined from the model
+g <- ggplot(data = d, aes(x = Brain_Size_Species_Mean, y = WeaningAge_d))
+g <- g + geom_point()
+g <- g + geom_smooth(method = "lm", formula = y ~ x)
+g 
+g 
+## Geomtext???Append the the fitted model equation to your plot.
+##HINT: See the function geom_text().
+
+glog <- ggplot(data = d, aes(x = log(Brain_Size_Species_Mean), y = log(WeaningAge_d), label=rownames(d)))
+glog <- glog + geom_point()
+glog <- glog + geom_smooth(method = "lm", formula = y ~ x)
+glog <- glog + geom_text()
+glog
+
+```
+
+```{r}
+## to get the value of beta 1 (slope) for the model
+beta0 <- tidy(model) %>%
+  filter(term == "(Intercept)") %>%
+  pull(estimate)
+beta1 <- tidy(model) %>%
+  filter(term == "Brain_Size_Species_Mean") %>%
+  pull(estimate)
+(h.hat <- beta1 * 150 + beta0)
+
+beta0 # 3.369846
+beta1 #0.57116
+
+# for every 1 unit increase in Brain_Size_Species_Mean, there will be a 0.57116 increase in WeaningAge_d. 
+
+# hypothesis 1 is the null hypothesis that beta1 is 0
+beta1==0 #FALSE
+
+# hypothesis 2 us that the alternative hypothesis that says beta1 is not 0
+beta1!=0 #TRUE
+
+## to get the value of beta 1 for the log model
+beta0 <- tidy(modelog) %>%
+  filter(term == "(Intercept)") %>%
+  pull(estimate)
+beta1 <- tidy(modelog) %>%
+  filter(term == "log(Brain_Size_Species_Mean)") %>%
+  pull(estimate)
+(h.hat <- beta1 * 150 + beta0)
+
+beta0
+beta1
+
+# for model
+alpha = 0.1 ##(90% CI)
+ci <- predict(model,
+  newdata = data.frame(Brain_Size_Species_Mean = d$Brain_Size_Species_Mean),
+  interval = "confidence", level = 1 - alpha
+) # for a vector of values
+ci <- data.frame(ci)
+ci
+
+# for log model
+cilog <- predict(modelog,
+  newdata = data.frame(Brain_Size_Species_Mean = log(d$Brain_Size_Species_Mean)),
+  interval = "confidence", level = 1 - alpha
+) # for a vector of values
+cilog <- data.frame(ci)
+cilog
+```
+
+```{r}
+## Challenge 2
+# dataset has already been imported and worked with - d
+model2 <- lm(log(MeanGroupSize) ~ log(Body_mass_female_mean), data = d)
+summary(model2)
+model2$coefficients
+
+beta0 <- tidy(model2) %>%
+  filter(term == "(Intercept)") %>%
+  pull(estimate)
+beta1 <- tidy(model2) %>%
+  filter(term == "log(Body_mass_female_mean)") %>%
+  pull(estimate)
+(h.hat <- beta1 * 150 + beta0)
+
+beta1 ## Slope value
+beta0 ## intercept value
+```
+
+```{r}
+## to sample the data using bootstrapping
+log1 <- log(d$MeanGroupSize)
+log2 <- log(d$Body_mass_female_mean)
+df2 <- cbind(log1, log2)
+df2<- as.data.frame(df2)
+## Bootstrapping 1000 times
+set.seed(1)
+alpha <- 0.05
+p_lower <- alpha / 2
+p_upper <- 1 - (alpha / 2)
+boot.slope <- df2 %>%
+
+specify(log1 ~ log2) %>% # specify model
+generate(reps = 1000, type = "bootstrap") %>% ## replication
+calculate(stat = "slope") # statistic is slope
+slope <- boot.slope$stat
+#plot the histogram of slope beta1
+hist(slope) 
+
+# to find the intercept
+inter <- mean(df2$log1, na.rm=T)-slope*(mean(df2$log2, na.rm=T))
+inter
+#plot a histogram of intercept beta0
+hist(inter)
+```
+
+```{r}
+# estimation of se of slope and intercept
+meanslope <- mean(slope)
+sdslope <- sd(slope)
+# (standard deviation of a single sample of size n, or s) ÷√n
+seslope <- sdslope/length(slope)
+seslope
+
+meaninter <- mean(inter)
+sdinter <- sd(inter)
+seinter <- sdinter/length(inter)
+seinter
+
+# 95% CI for each of the beta elements slope and intercept
+# for slope
+alpha <- 0.05
+percent_ci <- 95
+alpha <- 1 - percent_ci / 100 # alpha = 0.05
+lower <- meanslope + qnorm(alpha / 2) * seslope
+# where qnorm(alpha /2) is the 2.5% quantile of the standard normal distribution
+upper <- meanslope + qnorm(1 - alpha / 2) * seslope
+# where qnorm(1 - alpha / 2) is the 97.5% quantile of the standard normal distribution
+(ci <- c(lower, upper))
+# the CI is between 0.5056108 and 0.5058467
+
+# for intercept
+percent_ci <- 95
+alpha <- 1 - percent_ci / 100 # alpha = 0.05
+lower <- meaninter + qnorm(alpha / 2) * seinter
+# where qnorm(alpha /2) is the 2.5% quantile of the standard normal distribution
+upper <- meaninter + qnorm(1 - alpha / 2) * seinter
+# where qnorm(1 - alpha / 2) is the 97.5% quantile of the standard normal distribution
+(ci <- c(lower, upper))
+# the CI is between -1.816620 and -1.814793
+```
+
+```{r}
+##How do the SEs estimated from the bootstrap sampling distribution compare to those estimated mathematically as part of lm() function?
+##How do your bootstrap CIs compare to those estimated mathematically as part of the lm() function?
+```
+
+```{r}
+# Challenge 3
+# creating a function called boot_lm
+
+
+boot_lm <- function(data=df, y, x, conf.level=0.95, reps=1000)
+{
+  model = log(y)~log(x)
+  (beta1 <- cor(y, x) * (sd(y) / sd(x)))
+  (beta0 <- mean(x) - beta1 * mean(y))
+  return(beta)
+}
+
+boot_lm(d, d$MeanGroupSize, d$Body_mass_female_mean)
+
+```
+
