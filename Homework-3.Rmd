@@ -6,6 +6,7 @@ output: html_document
 ---
 
 ```{r}
+chooseCRANmirror(graphics=FALSE, ind=1)
 ## Challenge 1
 ## Loading the packages
 install.packages("easypackages") ## package to load in multiple packages in a single line of code!!
@@ -17,14 +18,14 @@ libraries("tidyverse", "curl", "broom", "lmodel2", "boot", "patchwork", "infer")
 f <- curl("https://raw.githubusercontent.com/BeeSmruti/Pimplikar-Smruti-ada-homework-3/main/KamilarAndCooperData.csv")
 d <- read.csv(f, header = TRUE, sep = ",", stringsAsFactors = FALSE)
 head(d)
-
+```
 ## part 1 is to fit a regression model. The predicted variable (Y) is WeaningAge_d and the controlled variable (X) is Brain_Size_Species_Mean.
-
+```{r}
 model <- lm(WeaningAge_d ~ Brain_Size_Species_Mean, data = d)
 modelog <- lm(log(WeaningAge_d)~log(Brain_Size_Species_Mean), data=d)
 names(model) ## elements of the model, can be inspected individually for more information. 
 names(modelog)
-mod$coefficients 
+model$coefficients 
 tidy(model)
 modelog$coefficients
 tidy(modelog)
@@ -96,6 +97,104 @@ cilog <- predict(modelog,
 cilog <- data.frame(ci)
 cilog
 ```
+
+```{r}
+#confidence intervals 
+
+dmod <- augment(model, se_fit = TRUE)
+head(dmod)
+dmod <- dmod %>%
+    mutate(
+    c.lwr = .fitted - qt(1 - alpha / 2, nrow(dmod) - 2) * .se.fit,
+    c.upr = .fitted + qt(1 - alpha / 2, nrow(dmod) - 2) * .se.fit
+  )
+head(dmod)
+
+g <- ggplot(data = dmod, aes(x = Brain_Size_Species_Mean, y = WeaningAge_d))
+g <- g + geom_point(alpha = 1)
+g <- g + geom_line(aes(x = Brain_Size_Species_Mean, y = .fitted), color = "black")
+g <- g + geom_line(aes(x = Brain_Size_Species_Mean, y = c.lwr), color = "blue")
+g <- g + geom_line(aes(x = Brain_Size_Species_Mean, y = c.upr), color = "blue")
+g
+
+# prediction lines
+pi <- predict(model,
+  newdata = data.frame(Brain_Size_Species_Mean = dmod$Brain_Size_Species_Mean),
+  interval = "prediction", level = 0.90
+) # for a vector of values
+pi <- data.frame(pi)
+pi <- cbind(dmod$Brain_Size_Species_Mean, pi)
+names(pi) <- c("Brain_Size_Species_Mean", "p.fit", "p.lwr", "p.upr")
+g <- g + geom_line(data = pi, aes(x = Brain_Size_Species_Mean, y = p.lwr), color = "red")
+g <- g + geom_line(data = pi, aes(x = Brain_Size_Species_Mean, y = p.upr), color = "red")
+g
+
+#confidence intervals in log models 
+dlog <- augment(modelog, se_fit = TRUE)
+head(dlog)
+dlog <- dlog %>%
+    mutate(
+    c.lwr = .fitted - qt(1 - alpha / 2, nrow(dlog) - 2) * .se.fit,
+    c.upr = .fitted + qt(1 - alpha / 2, nrow(dlog) - 2) * .se.fit
+  )
+head(dlog)
+#glog <- ggplot(dlog, aes(x = log(d$Body_mass_female_mean), y = log(d$MeanGroupSize))
+#glog <- glog + geom_point(alpha =1)
+#glog <- glog + geom_line(aes(x = log(d$Body_mass_female_mean), y = .fitted), color = "black")
+#glog <- glog + geom_line(aes(x = log(d$Body_mass_female_mean), y = c.lwr), color = "blue")
+#glog <- glog + geom_line(aes(x = log(d$Body_mass_female_mean), y = c.upr), color = "blue")
+#glog
+
+# prediction lines in log models
+
+pi <- predict(modelog,
+  newdata = data.frame(Brain_Size_Species_Mean = log(d$Brain_Size_Species_Mean)),
+  interval = "prediction", level = 0.90
+) # for a vector of values
+pi <- data.frame(pi)
+pi <- cbind(d$Brain_Size_Species_Mean, pi)
+names(pi) <- c("Brain_Size_Species_Mean", "p.fit", "p.lwr", "p.upr")
+g <- g + geom_line(data = pi, aes(x = Brain_Size_Species_Mean, y = p.lwr), color = "red")
+g <- g + geom_line(data = pi, aes(x = Brain_Size_Species_Mean, y = p.upr), color = "red")
+g
+```
+
+```{r}
+## 90% prediction interval for weaning age when brain weight is 750 mg.
+# Normal Model
+beta0 <- tidy(model) %>%
+  filter(term == "(Intercept)") %>%
+  pull(estimate)
+beta1 <- tidy(model) %>%
+  filter(term == "Brain_Size_Species_Mean") %>%
+  pull(estimate)
+(h.hat <- beta1 * 750 + beta0)
+
+pi <- predict(model,
+  newdata = data.frame(Brain_Size_Species_Mean = 750),
+  interval = "prediction", level = 0.90
+) # for a single value
+pi
+
+# for log model
+log(750) 
+beta0 <- tidy(modelog) %>%
+  filter(term == "(Intercept)") %>%
+  pull(estimate)
+beta0
+beta1 <- tidy(modelog) %>%
+  filter(term == "log(Brain_Size_Species_Mean)") %>%
+  pull(estimate)
+beta1
+(h.hat <- beta1 * 6.62 + beta0)
+#pi <- predict(modelog,
+   #newdata = data.frame(Brain_Size_Species_mean = 6.62),
+   #interval = "prediction", level=0.90
+#)
+pi
+```
+## I'm not quite able to understand the error here, there is an issue with the object that I can't quite figure out how to fix. 
+
 
 ```{r}
 ## Challenge 2
@@ -179,25 +278,89 @@ upper <- meaninter + qnorm(1 - alpha / 2) * seinter
 # the CI is between -1.816620 and -1.814793
 ```
 
-```{r}
+
 ##How do the SEs estimated from the bootstrap sampling distribution compare to those estimated mathematically as part of lm() function?
-##How do your bootstrap CIs compare to those estimated mathematically as part of the lm() function?
-```
+## SE from the model were much larger than that from my lm function calculation
+
 
 ```{r}
 # Challenge 3
 # creating a function called boot_lm
 
-
 boot_lm <- function(data=df, y, x, conf.level=0.95, reps=1000)
 {
-  model = log(y)~log(x)
-  (beta1 <- cor(y, x) * (sd(y) / sd(x)))
-  (beta0 <- mean(x) - beta1 * mean(y))
-  return(beta)
+  model = lm(log(y)~log(x))
+  summary(model)
+  d1<- data.frame(model$coefficients[1], model$coefficients[2], model$coefficients[3], model$coefficients[4])
+  colnames(d1) <- c("beta0", "beta1", "beta0 standard error", "beta1 standard error")
+  alpha <- 0.05
+percent_ci <- 95
+alpha <- 1 - percent_ci / 100 # alpha = 0.05
+lower <- mean(model$coefficients[1]) + qnorm(alpha / 2) * model$coefficients[2]
+# where qnorm(alpha /2) is the 2.5% quantile of the standard normal distribution
+upper <- mean(model$coefficients[1]) + qnorm(1 - alpha / 2) * model$coefficients[2]
+(ci <- cbind(lower, upper))
+
+d1 <- cbind (d1, ci)
+
+beta0_perms <- numeric(reps)
+beta1_perms <- numeric(reps)
+beta0_seper <- numeric(reps)
+beta1_seper <- numeric(reps)
+
+ for (i in 1:reps) 
+  {
+  model = lm(log(y)~log(x))
+  
+  alpha <- 0.05
+  percent_ci <- 95
+  alpha <- 1 - percent_ci / 100 # alpha = 0.05
+  lower <- mean(model$coefficients[1]) + qnorm(alpha / 2) * model$coefficients[2]
+# where qnorm(alpha /2) is the 2.5% quantile of the standard normal distribution
+  upper <- mean(model$coefficients[1]) + qnorm(1 - alpha / 2) * model$coefficients[2]
+  (ci <- cbind(lower, upper))
+  df1 <- cbind(d1,ci)
+  
+  beta0_perms[i] <- (model$coefficients[1])
+  beta1_perms[i] <- (model$coefficients[2])
+  beta0_seper[i] <- (model$coefficients[3])
+  beta1_seper[i] <- (model$coefficients[4])
+  
+  m1<-mean(beta0_perms)
+  m2<-mean(beta1_perms)
+  m3<-mean(beta0_seper)
+  m4<-mean(beta1_seper)
+  means <- data.frame(m1, m2, m3, m4)
+  colnames(means) <- c("means1","2","3","4")
+  d3 <- cbind(d1, means)
+ return(d3)
 }
+}
+```
 
-boot_lm(d, d$MeanGroupSize, d$Body_mass_female_mean)
+```{r}
+boot1 <- boot_lm(d, d$MeanGroupSize, d$Body_mass_female_mean)
+boot1
+```
+```{r}
+boot11 <- boot_lm(d, d$MeanGroupSize, d$Body_mass_female_mean, reps=0)
+boot11
+```
 
+```{r}
+boot2 <- boot_lm(d, d$DayLength_km, d$Body_mass_female_mean)
+boot2 
+```
+```{r}
+boot21 <- boot_lm(d, d$DayLength_km, d$Body_mass_female_mean, reps=0) #is reps 0 normal model?
+boot21
+```
+```{r}
+boot3 <- boot_lm(d, d$DayLength_km, (d$Body_mass_female_mean)*(d$MeanGroupSize))
+boot3
+```
+```{r}
+boot31 <- boot_lm(d, d$DayLength_km, (d$Body_mass_female_mean)*(d$MeanGroupSize), reps=0)
+boot31
 ```
 
